@@ -25,18 +25,33 @@ class Shabbat_Lockdown
 
     public function __construct()
     {
+        add_action('shabbat_lockdown', [$this, 'schedule']);
+        add_action('template_redirect', [$this, 'lockdown']);
+
+        if (!wp_next_scheduled('shabbat_lockdown')) {
+            $startTime = $this->getStartTime();
+            if ($startTime) {
+                wp_schedule_single_event($startTime, 'shabbat_lockdown');
+            }
+        }
+    }
+
+    public function schedule()
+    {
+        $endTime = $this->getEndTime();
+        if ($endTime) {
+            $expiration = $endTime - (new DateTime(date_i18n('c')))->getTimestamp();
+            set_transient('lockdown', true, $expiration);
+        }
+    }
+
+    public function lockdown()
+    {
         global $wp_query;
 
-        $schedule = wp_list_pluck($this->getNextSchedule(), 'date', 'category');
-        $candles = strtotime($schedule['candles'] ?? null);
-        $havdalah = strtotime($schedule['havdalah'] ?? null);
-
-        if ($candles && $havdalah) {
-            $now = (new DateTime(date_i18n('c')))->getTimestamp();
-            if ($now > $candles && $now < $havdalah) {
-                $wp_query->set_404();
-                status_header(503);
-            }
+        if (false != get_transient('lockdown')) {
+            $wp_query->set_404();
+            status_header(503);
         }
     }
 
@@ -55,10 +70,20 @@ class Shabbat_Lockdown
         }
 
         $result = json_decode(wp_remote_retrieve_body($response), true);
-        return $result['items'] ?? [];
+        return wp_list_pluck($result['items'] ?? [], 'date', 'category');
+    }
+
+    public function getStartTime()
+    {
+        return strtotime($this->getNextSchedule()['candles'] ?? null);
+    }
+
+    public function getEndTime()
+    {
+        return strtotime($this->getNextSchedule()['havdalah'] ?? null);
     }
 }
 
-add_action('template_redirect', function () {
+add_action('plugins_loaded', function () {
     Shabbat_Lockdown::instance();
 });
