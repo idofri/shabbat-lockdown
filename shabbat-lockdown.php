@@ -2,7 +2,7 @@
 
 /**
  * Plugin Name: Shabbat Lockdown
- * Version:     1.0.2
+ * Version:     1.0.3
  * Author:      Ido Friedlander
  * Author URI:  https://github.com/idofri
  */
