@@ -28,21 +28,21 @@ class Shabbat_Lockdown
         add_action('shabbat_lockdown', [$this, 'schedule']);
         add_action('template_redirect', [$this, 'lockdown']);
 
-        if (!wp_next_scheduled('shabbat_lockdown')) {
-            $startTime = $this->getStartTime();
-            if ($startTime) {
-                wp_schedule_single_event($startTime, 'shabbat_lockdown');
+        $scheduledEndTime = (int) get_option('shabbat_lockdown_endtime');
+
+        if (!wp_next_scheduled('shabbat_lockdown', [$scheduledEndTime])) {
+            list($startTime, $endTime) = $this->fetchNextSchedule();
+            if ($startTime && $endTime) {
+                update_option('shabbat_lockdown_endtime', $endTime);
+                wp_schedule_single_event($startTime, 'shabbat_lockdown', [$endTime]);
             }
         }
     }
 
-    public function schedule()
+    public function schedule($endTime)
     {
-        $endTime = $this->getEndTime();
-        if ($endTime) {
-            $expiration = $endTime - (new DateTime(date_i18n('c')))->getTimestamp();
-            set_transient('lockdown', true, $expiration);
-        }
+        $expiration = $endTime - (new DateTime(date_i18n('c')))->getTimestamp();
+        set_transient('lockdown', true, $expiration);
     }
 
     public function lockdown()
@@ -55,7 +55,7 @@ class Shabbat_Lockdown
         }
     }
 
-    public function getNextSchedule()
+    public function fetchNextSchedule()
     {
         $response = wp_remote_get(
             add_query_arg([
@@ -66,21 +66,16 @@ class Shabbat_Lockdown
         );
 
         if (is_wp_error($response)) {
-            return [];
+            return [false, false];
         }
 
         $result = json_decode(wp_remote_retrieve_body($response), true);
-        return wp_list_pluck($result['items'] ?? [], 'date', 'category');
-    }
+        $schedule = wp_list_pluck($result['items'] ?? [], 'date', 'category');
 
-    public function getStartTime()
-    {
-        return strtotime($this->getNextSchedule()['candles'] ?? null);
-    }
-
-    public function getEndTime()
-    {
-        return strtotime($this->getNextSchedule()['havdalah'] ?? null);
+        return [
+            strtotime($schedule['candles'] ?? null),
+            strtotime($schedule['havdalah'] ?? null),
+        ];
     }
 }
 
