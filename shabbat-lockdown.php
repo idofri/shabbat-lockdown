@@ -26,16 +26,19 @@ class Shabbat_Lockdown
     public function __construct()
     {
         add_action('shabbat_lockdown', [$this, 'schedule']);
+        add_action('deleted_transient', [$this, 'activate']);
         add_action('template_redirect', [$this, 'lockdown']);
+    }
 
-        $scheduledEndTime = (int) get_option('shabbat_lockdown_endtime');
+    public function activate($transient = '')
+    {
+        if ($transient && $transient != 'lockdown') {
+            return;
+        }
 
-        if (!wp_next_scheduled('shabbat_lockdown', [$scheduledEndTime])) {
-            list($startTime, $endTime) = $this->fetchNextSchedule();
-            if ($startTime && $endTime) {
-                update_option('shabbat_lockdown_endtime', $endTime);
-                wp_schedule_single_event($startTime, 'shabbat_lockdown', [$endTime]);
-            }
+        list($startTime, $endTime) = $this->fetchNextSchedule();
+        if ($startTime && $endTime) {
+            wp_schedule_single_event($startTime, 'shabbat_lockdown', [$endTime]);
         }
     }
 
@@ -79,6 +82,5 @@ class Shabbat_Lockdown
     }
 }
 
-add_action('plugins_loaded', function () {
-    Shabbat_Lockdown::instance();
-});
+$plugin = Shabbat_Lockdown::instance();
+register_activation_hook(__FILE__, [$plugin, 'activate']);
