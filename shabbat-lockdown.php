@@ -32,7 +32,7 @@ class Shabbat_Lockdown
 
     public function activate($transient = '')
     {
-        if ($transient && $transient != 'lockdown') {
+        if ($transient && $transient != 'shabbat_lockdown') {
             return;
         }
 
@@ -45,14 +45,14 @@ class Shabbat_Lockdown
     public function schedule($endTime)
     {
         $expiration = $endTime - (new DateTime(date_i18n('c')))->getTimestamp();
-        set_transient('lockdown', true, $expiration);
+        set_transient('shabbat_lockdown', true, $expiration);
     }
 
     public function lockdown()
     {
         global $wp_query;
 
-        if (false != get_transient('lockdown')) {
+        if (false != get_transient('shabbat_lockdown')) {
             $wp_query->set_404();
             status_header(503);
         }
