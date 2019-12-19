@@ -17,6 +17,8 @@ class Shabbat_Lockdown
 
     const API_BASE_URL = 'https://www.hebcal.com/shabbat/';
 
+    const TRANSIENT = 'candle_lighting_time';
+
     public static function instance()
     {
         static $instance;
@@ -25,37 +27,39 @@ class Shabbat_Lockdown
 
     public function __construct()
     {
-        add_action('shabbat_lockdown', [$this, 'schedule']);
+        add_action('shabbat_schedule', [$this, 'schedule']);
+        add_action('template_redirect', [$this, 'observe']);
         add_action('deleted_transient', [$this, 'activate']);
-        add_action('template_redirect', [$this, 'lockdown']);
     }
 
     public function activate($transient = '')
     {
-        if ($transient && $transient != 'shabbat_lockdown') {
+        if ($transient && $transient != self::TRANSIENT) {
             return;
         }
 
         list($startTime, $endTime) = $this->fetchNextSchedule();
         if ($startTime && $endTime) {
-            wp_schedule_single_event($startTime, 'shabbat_lockdown', [$endTime]);
+            wp_schedule_single_event($startTime, 'shabbat_schedule', [$endTime]);
         }
     }
 
     public function schedule($endTime)
     {
         $expiration = $endTime - (new DateTime(date_i18n('c')))->getTimestamp();
-        set_transient('shabbat_lockdown', true, $expiration);
+        set_transient(self::TRANSIENT, $endTime, $expiration);
     }
 
-    public function lockdown()
+    public function observe()
     {
-        global $wp_query;
-
-        if (false != get_transient('shabbat_lockdown')) {
-            $wp_query->set_404();
-            status_header(503);
+        if (false === ($endTime = get_transient(self::TRANSIENT))) {
+            return;
         }
+
+        do_action('shabbat_lockdown/template_redirect', $endTime);
+        add_filter('template_include', function($template) use ($endTime) {
+            return apply_filters('shabbat_lockdown/template_include', $template, $endTime);
+        });
     }
 
     public function fetchNextSchedule()
